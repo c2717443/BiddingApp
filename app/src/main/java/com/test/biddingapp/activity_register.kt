@@ -78,8 +78,8 @@ fun RegisterScreen() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp), // Adjust the padding as needed
-            horizontalArrangement = Arrangement.End // This will align the button to the end (right)
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.End
         ) {
             Button(onClick = {
 

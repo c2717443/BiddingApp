@@ -74,20 +74,21 @@ object Controller {
         }
     }
 
-    fun calculateRemainingTime(bidTime: Long): String {
-        val currentTime = System.currentTimeMillis()
-        val oneHourInMillis = TimeUnit.HOURS.toMillis(1)
-        val timeElapsed = currentTime - bidTime
-        val remainingTime = oneHourInMillis - timeElapsed
+
+    fun calculateTimeUntilExpiry(expiryTimestamp: Long): String {
+     //   val currentTime = System.currentTimeMillis()
+        val remainingTime = expiryTimestamp
 
         return if (remainingTime > 0) {
+            val hours = TimeUnit.MILLISECONDS.toHours(remainingTime)
             val minutes = TimeUnit.MILLISECONDS.toMinutes(remainingTime) % 60
             val seconds = TimeUnit.MILLISECONDS.toSeconds(remainingTime) % 60
-            "$minutes minutes and $seconds seconds remaining"
+            "$hours hours, $minutes minutes, and $seconds seconds remaining"
         } else {
             "Bidding time is over"
         }
     }
+
 
     fun convertLongToTime(time: Long): String {
         val date = Date(time)

@@ -30,6 +30,8 @@ import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.storage.FirebaseStorage
 import com.test.onlinestoreapp.Controller
+import java.text.SimpleDateFormat
+import java.util.*
 
 class PostBiddingItemActivity : ComponentActivity() {
     private lateinit var image_Picker_Launcher: ActivityResultLauncher<String>
@@ -50,7 +52,7 @@ class PostBiddingItemActivity : ComponentActivity() {
         var description by remember { mutableStateOf("") }
         var imageUrl by remember { mutableStateOf("") }
         var uri_img by remember { mutableStateOf<Uri?>(null) }
-
+        var expiryDays by remember { mutableStateOf("") }
         var startingBid by remember { mutableStateOf("") }
         val launcher_image = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri_img = uri
@@ -98,6 +100,18 @@ class PostBiddingItemActivity : ComponentActivity() {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+            OutlinedTextField(
+                value = expiryDays,
+                onValueChange = { expiryDays = it },
+                label = { Text("Expiry Days") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Done,
+                    keyboardType = KeyboardType.Number
+                ),
+                singleLine = true
+            )
+
 
             if (uri_img != null) {
                 Image(
@@ -126,7 +140,7 @@ class PostBiddingItemActivity : ComponentActivity() {
                     if (uri_img != null) {
                         Controller.show_loader(context,"Uploading and posting item . . .")
                         upload_image_to_firebase_storage(uri_img!!, context, onSuccess = { downloadUri ->
-                            save_bidding_item_to_database(context,title, description, startingBid, downloadUri.toString())
+                            save_bidding_item_to_database(context,title, description, startingBid, downloadUri.toString(),expiryDays)
                         }, onFailure = { exception ->
                             Controller.hide_loader()
                             Toast.makeText(context, "Image upload failed: ${exception.message}", Toast.LENGTH_SHORT).show()
@@ -156,41 +170,52 @@ fun upload_image_to_firebase_storage(uri: Uri, context: Context, onSuccess: (Uri
     }
 }
 
-fun save_bidding_item_to_database(context: Context,title: String, description: String, startingBid: String, imageUrl: String) {
+fun save_bidding_item_to_database(context: Context, title: String, description: String, startingBid: String, imageUrl: String, expiryDays: String) {
     val databaseRef = FirebaseDatabase.getInstance().getReference("biddingItems")
     val itemId = databaseRef.push().key
-    val _timestamp = System.currentTimeMillis()
+    val uid=Controller.getUserId(context)
+    val currentTimestamp = System.currentTimeMillis()
+    val millisInADay = 24 * 60 * 60 * 1000L
+    val expiryTimestamp = currentTimestamp + (expiryDays.toDouble() * millisInADay)
+
+
+
 
     val auctionItem = AuctionItemUpload(
         id = itemId ?: "",
+        uid=uid?:"",
         title = title,
         description = description,
         imageUrl = imageUrl,
-        startingBid = startingBid.toDouble(),
-        timestamp = _timestamp
+        startingBid = startingBid.toDoubleOrNull() ?: 0.0,
+        timestamp = currentTimestamp,
+        expiryDays = expiryDays.toInt() ?: 0,
+        expiryTimestamp = expiryTimestamp.toLong()
     )
+
     itemId?.let {
         databaseRef.child(it).setValue(auctionItem).addOnCompleteListener { task ->
+            Controller.hide_loader()
             if (task.isSuccessful) {
-                Controller.hide_loader()
-
-                Toast.makeText(context,"Saved Successfully!",Toast.LENGTH_LONG).show()
-
+                Toast.makeText(context, "Item listed successfully!", Toast.LENGTH_LONG).show()
             } else {
-                Controller.hide_loader()
-
+                Toast.makeText(context, "Failed to list item: ${task.exception?.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
 }
 
 data class AuctionItemUpload(
-    val id: String,
-    val title: String,
-    val description: String,
-    val imageUrl: String,
-    var startingBid: Double,
-    val timestamp: Long
+    val id: String = "",
+    val uid: String = "",
+    val title: String = "",
+    val description: String = "",
+    val imageUrl: String = "",
+    var startingBid: Double = 0.0,
+    val timestamp: Long = 0L,
+    val expiryDays: Int = 0,
+    val expiryTimestamp: Long = 0L
 )
+
 
 

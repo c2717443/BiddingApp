@@ -73,16 +73,11 @@ fun LoginScreen() {
             modifier = Modifier.padding(horizontal = 16.dp)
         )
 
-        TextField(value = _email, onValueChange = { _email = it }, label = { Text("Username") }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        TextField(value = _email, onValueChange = { _email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
 
         TextField(value = _password, onValueChange = { _password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp), // Adjust the padding as needed
-            horizontalArrangement = Arrangement.End // This will align the button to the end (right)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.End) {
             Button(onClick = {
 
                 if (_email.isEmpty() || _password.isEmpty()) {
@@ -140,7 +135,6 @@ fun sign_in_using_auth_firebase(email: String, password: String, context: Contex
             if (task.isSuccessful) {
                 val user = auth.currentUser
 
-                // Fetch additional user information from Realtime Database
                 if (user != null) {
                     fetchUserInfoFromDatabase(user.uid, context)
                 }

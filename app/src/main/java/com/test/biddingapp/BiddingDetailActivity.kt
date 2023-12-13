@@ -1,5 +1,6 @@
 package com.test.biddingapp
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -18,8 +19,9 @@ import coil.compose.AsyncImage
 import com.google.firebase.database.*
 import com.test.biddingapp.ui.theme.BiddingAppTheme
 import com.test.onlinestoreapp.Controller
-import com.test.onlinestoreapp.Controller.calculateRemainingTime
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class BiddingDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,48 +48,49 @@ class BiddingDetailActivity : ComponentActivity() {
 fun BiddingDetailScreen(biddingItem: BiddingItem) {
     val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val coroutineScope = rememberCoroutineScope()
+    var isBiddingActive by remember { mutableStateOf(true) }
     var bidAmount by remember { mutableStateOf("") }
     val bids = remember { mutableStateListOf<Bid>() }
     var remainingTimeText by remember { mutableStateOf("") }
     var context = LocalContext.current
-    var lastUpdatedTimestamp by remember { mutableStateOf(biddingItem.timestamp) }
+    var wonBidId by remember { mutableStateOf("") }
+
     var wonBidderName by remember { mutableStateOf("") }
     val bidsLoaded = remember { mutableStateOf(false) }
-
+    val currentUserID = Controller.getUserId(context)
     LaunchedEffect(bids) {
         if (bids.isNotEmpty()) {
             bidsLoaded.value = true
         }
     }
 
-
-
-    DisposableEffect(Unit) {
-        val onTimestampChanged: (Long) -> Unit = { newTimestamp ->
-            lastUpdatedTimestamp = newTimestamp
-        }
-        listenForTimestampChanges(biddingItem.id, onTimestampChanged)
-
-        onDispose {
-
-        }
-    }
-
-
-
-    LaunchedEffect(key1 = lastUpdatedTimestamp, key2 = bidsLoaded.value) {
+    LaunchedEffect( key1= bidsLoaded.value) {
         while (true) {
-            remainingTimeText = calculateRemainingTime(lastUpdatedTimestamp)
+            val currentTime = System.currentTimeMillis()
+            val timeLeft = biddingItem.expiryTimestamp - currentTime
 
-            if (remainingTimeText == "Bidding time is over" && bidsLoaded.value) {
-                val highestBid = bids.maxByOrNull { it.bidAmount }
-                wonBidderName = highestBid?.bidderName ?: "No bids"
-                break
+            println("Current Time: $currentTime")
+            println("Expiry Time: ${biddingItem.expiryTimestamp}")
+            println("Time Left: $timeLeft")
+
+            if (timeLeft < 0) {
+                remainingTimeText = "Bidding time is over"
+                if (bidsLoaded.value) {
+                    val highestBid = bids.maxByOrNull { it.bidAmount }
+                    wonBidderName = highestBid?.bidderName ?: "No bids"
+                    wonBidId = highestBid?.bidderId ?: "No Id"
+                    isBiddingActive = false
+                    break
+                }
+            } else {
+                remainingTimeText = Controller.calculateTimeUntilExpiry(timeLeft)
             }
 
             kotlinx.coroutines.delay(1000L)
         }
     }
+
+
 
 
     LaunchedEffect(Unit) {
@@ -98,7 +101,6 @@ fun BiddingDetailScreen(biddingItem: BiddingItem) {
                 snapshot.children.mapNotNullTo(bids) {
                     it.getValue(Bid::class.java)
                 }
-              //  bids.sortByDescending { it.bidAmount }
                 bidsLoaded.value = true
             }
 
@@ -113,30 +115,26 @@ fun BiddingDetailScreen(biddingItem: BiddingItem) {
         sheetContent = {
             BidInputSheet(bidAmount, onBidAmountChange = { bidAmount = it }) {
                 coroutineScope.launch {
-                    sheetState.hide()
-                    val newBid = Bid(Controller.getUserName(context), bidAmount.toDouble(), System.currentTimeMillis())
-                    val bidsReference = FirebaseDatabase.getInstance().getReference("bids/${biddingItem.id}")
-                    bidsReference.push().setValue(newBid)
-                        .addOnSuccessListener {
 
-                            val updatedTimestamp = System.currentTimeMillis()
-                            val updatedBiddingItem = biddingItem.copy(timestamp = updatedTimestamp)
 
-                            val biddingItemsReference = FirebaseDatabase.getInstance().getReference("biddingItems/${biddingItem.id}")
-                            biddingItemsReference.setValue(updatedBiddingItem)
-                                .addOnSuccessListener {
+                    if(bidAmount.toDouble()<biddingItem.startingBid){
+                        Toast.makeText(context, "Placing bid should be greater then starting price", Toast.LENGTH_LONG).show()
 
-                                    Toast.makeText(context, "Bid Placed Successfully!", Toast.LENGTH_LONG).show()
+                    }
+                    else{
+                        sheetState.hide()
+                        val newBid = Bid(Controller.getUserId(context),Controller.getUserName(context), bidAmount.toDouble(), System.currentTimeMillis())
+                        val bidsReference = FirebaseDatabase.getInstance().getReference("bids/${biddingItem.id}")
+                        bidsReference.push().setValue(newBid)
+                            .addOnSuccessListener {
+                                Toast.makeText(context, "Bid Placed Successfully!", Toast.LENGTH_LONG).show()
 
-                                }
-                                .addOnFailureListener { e ->
+                            }
+                            .addOnFailureListener { e ->
+                                Toast.makeText(context, "Failed!", Toast.LENGTH_LONG).show()
 
-                                    Toast.makeText(context, "Failed!", Toast.LENGTH_LONG).show()
-                                }
-                        }
-                        .addOnFailureListener { e ->
-
-                        }
+                            }
+                    }
                 }
             }
         }
@@ -155,28 +153,50 @@ fun BiddingDetailScreen(biddingItem: BiddingItem) {
             Text(text = "Title: ${biddingItem.title}" ,  modifier = Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.h6)
             Text(text = "Description: ${biddingItem.description}" ,  modifier = Modifier.align(Alignment.CenterHorizontally))
             Text(text = "Starting Bid: ${biddingItem.startingBid}",  modifier = Modifier.align(Alignment.CenterHorizontally))
-            Button(
-                onClick = {
-                    coroutineScope.launch { sheetState.show() }
-                },
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(16.dp)
-            ) {
-                Text("Place Bid")
+            if (isBiddingActive && currentUserID != biddingItem.uid) {
+                Button(
+                    onClick = {
+                        coroutineScope.launch { sheetState.show() }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(16.dp)
+                ) {
+                    Text("Place Bid")
+                }
             }
             if (remainingTimeText == "Bidding time is over") {
-
+                isBiddingActive = false
                 Text(text = "Bidding time is over", modifier = Modifier.padding(5.dp).align(Alignment.CenterHorizontally))
 
                 Text(text = "Won bid: $wonBidderName", modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally))
-            } else {
+
+                if(wonBidId.equals(Controller.getUserId(context))){
+                    Button(
+                        onClick = {
+                            val intent = Intent(context, activity_payment::class.java).apply {
+                                putExtra("title", biddingItem.title)
+                                putExtra("description", biddingItem.description)
+                                putExtra("imageUrl", biddingItem.imageUrl)
+                                putExtra("startingBid", biddingItem.startingBid)
+                            }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(16.dp)
+                    ) {
+                        Text("Buy Item Now")
+                    }
+                }
+            }
+            else {
+
                 Text(text = "Remaining Time: $remainingTimeText", modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally))
+
             }
 
-
             LazyColumn {
-             //   bids.reverse()
                 val sortedBids = bids.sortedByDescending { it.bidAmount }
                 items(sortedBids) { bid ->
 
@@ -243,25 +263,13 @@ fun BidInputSheet(
 
 
 data class Bid(
+    val bidderId: String = "",
     val bidderName: String = "",
     val bidAmount: Double = 0.0,
     val bidTime: Long = 0
 )
 
-fun listenForTimestampChanges(biddingItemId: String, onTimestampChanged: (Long) -> Unit) {
-    val biddingItemReference = FirebaseDatabase.getInstance().getReference("biddingItems/$biddingItemId")
 
-    biddingItemReference.child("timestamp").addValueEventListener(object : ValueEventListener {
-        override fun onDataChange(snapshot: DataSnapshot) {
-            val timestamp = snapshot.getValue(Long::class.java)
-            timestamp?.let { onTimestampChanged(it) }
-        }
-
-        override fun onCancelled(error: DatabaseError) {
-
-        }
-    })
-}
 
 
 

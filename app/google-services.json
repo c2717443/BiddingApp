@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "657895733373",
+    "project_id": "beddingapp",
+    "storage_bucket": "beddingapp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657895733373:android:ebe57ddcbed0263f3ad914",
+        "android_client_info": {
+          "package_name": "com.test.biddingapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdf3KA5t0G4rujkWQFmRBnOSIyKkJWHBA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
